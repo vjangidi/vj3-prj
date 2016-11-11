@@ -7,6 +7,7 @@ from user import User
 from movie import Movie
 from context import Context
 import random
+import math
 
 Seperator = '::'
 ITERCOUNT = 50000
@@ -21,6 +22,7 @@ dictOfUserIdToContext = {}
 dictOfContext2Cluster = {}
 dictOfContexts2Counts = {}
 listOfGenres = []
+dictOfArrivalToContext = {}
 
 def getMovieListForAGenreId(genreId):
     return filter(lambda mov : genreId in mov.getGenreList(), dictOfMovieIdToGenreList.values())
@@ -81,6 +83,14 @@ def initContext2Counts():
     listOfContexts = [Context(context) for context in listOfRatingVectors]
     for context in listOfContexts:
         dictOfContexts2Counts[context.getContext()] = context
+        
+def calculateCosineDistance(pastContext,currentRatingContext):
+    dotProduct = reduce(lambda x, y : x + y, [pastContext[i]*currentRatingContext[i] for i in xrange(len(pastContext))])
+    scalarProduct = math.sqrt(reduce(lambda x, y : x + y, [pastContext[i]*pastContext[i] for i in xrange(len(pastContext))])) \
+                    * math.sqrt(reduce(lambda x, y : x + y, [currentRatingContext[i]*currentRatingContext[i] for i in xrange(len(currentRatingContext))]))
+    
+    return dotProduct/scalarProduct
+        
 
 if __name__ == '__main__':
     readMovie()
@@ -95,5 +105,26 @@ if __name__ == '__main__':
         #Find Closest contexts from them
         #Check the count of each cluster in these contexts and see if its less than A* t^Beta * lnt^Alpha
         #Explore or exploit
+        #Update the counts of Cluster
+        #Update the context of user with the rating if provided and dict mapping
+        randomUserId = random.choice(dictOfUserIdToContext.keys())
+        currentRatingContext = dictOfUserIdToContext[randomUserId]
+        
+        noOfClosestPastArrivalsToBeConsidered = math.floor(math.pow(i, Alpha))
+        dictOfArrivalToContext[i] = currentRatingContext
+        listOfDistancesWRTCurrentContext = [(pastContext,calculateCosineDistance(pastContext,currentRatingContext)) for pastContext in dictOfArrivalToContext.values()]
+        list.reverse(listOfDistancesWRTCurrentContext)
+        listOfDistance = [distance for context, distance in listOfDistancesWRTCurrentContext]
+        listOfDistance.sort()
+        listOfPastClosestContexts = []
+        for minDist in listOfDistance:
+            listOfContextsWithMinDist = filter(lambda x : x[1] == minDist , listOfDistancesWRTCurrentContext)
+            if len(listOfContextsWithMinDist) > noOfClosestPastArrivalsToBeConsidered:
+                listOfPastClosestContexts.extend(listOfContextsWithMinDist[:noOfClosestPastArrivalsToBeConsidered])
+                break
+            else:
+                listOfPastClosestContexts.extend(listOfContextsWithMinDist)
+            
+        explorationParam = A * math.pow(i, Beta) * math.log(math.pow(i, Alpha))       
         pass
     
