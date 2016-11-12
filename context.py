@@ -1,7 +1,7 @@
 '''
 Created on Nov 8, 2016
 
-@author: Varun
+@author: Varun/Fathima
 '''
 
 class Context(object):
@@ -23,11 +23,14 @@ class Context(object):
     def addCountForGenreId(self, genreId):
         self.GenreId2Count[genreId] = 1 if self.GenreId2Count.get(genreId) is None else self.GenreId2Count[genreId] + 1
             
-    def addRewardForGenreId(self,genreId):   
-        self.GenreId2RewardPayoff[genreId] = 1 if self.GenreId2RewardPayoff.get(genreId) is None else self.GenreId2RewardPayoff[genreId] + 1
+    def addRewardForGenreId(self,genreId, rewardRating):   
+        self.GenreId2RewardPayoff[genreId] = [rewardRating] if self.GenreId2RewardPayoff.get(genreId) is None else self.GenreId2RewardPayoff[genreId].append(rewardRating)
         
     def getCountForGenreId(self, genreId):
-        return self.GenreId2Count[genreId]
+        return self.GenreId2Count[genreId] if self.GenreId2Count[genreId] else 0
     
     def getRewardForGenreId(self, genreId):
-        return self.GenreId2RewardPayoff[genreId]
+        if self.GenreId2RewardPayoff.get(genreId) is None:
+            return [0]
+        else:
+            return self.GenreId2RewardPayoff.get(genreId)

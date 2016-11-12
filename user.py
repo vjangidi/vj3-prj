@@ -21,7 +21,10 @@ class User(object):
         else:
             self.dictOfGenreToRatings[genreId] = [rating]
         self.listOfMoviesRated.append(movieId)
-            
+        
+    def getRatingListForGenreId(self, genreId):
+            return self.dictOfGenreToRatings.get(genreId)
+        
     def getNormalizedRatingForGenre(self, genreId):
         ratingsForGenre = self.dictOfGenreToRatings.get(genreId)
         ratingMean = 0
@@ -36,11 +39,7 @@ class User(object):
         return self.listOfMoviesRated
     
     def addReward(self, rating, movieId):
-        existingMoviesForThisRating = self.rewardDict.get(rating)
-        if  existingMoviesForThisRating:
-            existingMoviesForThisRating.append(movieId)
-        else:
-            self.rewardDict[rating] = [movieId]
+            self.rewardDict[movieId] = [rating]
             
     def getRewardForMovieid(self, movieId):
-        return 1 if movieId in self.rewardDict.values() else 0
+            return 0 if self.rewardDict.get(movieId) is None else self.rewardDict[movieId] 
