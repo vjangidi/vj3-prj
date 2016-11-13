@@ -8,21 +8,23 @@ from movie import Movie
 from context import Context
 import random
 import math
+import matplotlib.pyplot as plt
 
 Seperator = '::'
-ITERCOUNT = 5000
+ITERCOUNT = 50000
 RANDOM_REWARD_MOVIECOUNT = 50
 A = 1.5
 Beta = 0.25
 Alpha = 0.5
 
-
+dictOfIter2Regret = {}
 dictOfMovieIdToMovie = {}
 dictOfGenreId2MovieIdList = {}
 dictOfUserIdToUser = {}
 dictOfContextIds2Contexts = {}
 listOfGenres = []
 dictOfArrivalToContext = {}
+dictOfContextsDistance = {}
 
 def buildGenreId2MovieIdList():
     for genreId in listOfGenres:
@@ -82,23 +84,37 @@ def calculateCosineDistance(pastContext,currentRatingContext):
 
 def getClosestContexts(currentRatingContext, noOfClosestPastArrivalsToBeConsidered):
         listOfPastClosestContexts = []
-        
-        listOfDistancesWRTCurrentContext = [(pastContext,calculateCosineDistance(pastContext,currentRatingContext)) for pastContext in dictOfArrivalToContext.values()]
-        #Reversing the list to ensure first element reflects latest arrival
-        list.reverse(listOfDistancesWRTCurrentContext)
-        #Sort distances inAscending order
-        listOfDistance = [distance for context, distance in listOfDistancesWRTCurrentContext]
-        listOfDistance.sort()
+        #Getting the reverse list values
+        dictOfClosestContexts2CurrentRatingContext = {} 
+        pastContexts = list(set(dictOfArrivalToContext.values()[-noOfClosestPastArrivalsToBeConsidered:])) 
+        for pastContext in pastContexts:
+            if (pastContext.getContext() != currentRatingContext.getContext()):
+                key = (currentRatingContext.getContext(),pastContext.getContext())
+                reverseKey = (pastContext.getContext(), currentRatingContext.getContext())
+                if dictOfContextsDistance.get(key) is None and dictOfContextsDistance.get(reverseKey) is None:
+                    dist = calculateCosineDistance(pastContext,currentRatingContext)
+                    dictOfContextsDistance[key] = dist
+                    dictOfContextsDistance[reverseKey] = dist
+                else:
+                    dist = dictOfContextsDistance[key] if dictOfContextsDistance[key] is not None else dictOfContextsDistance[reverseKey]
+                dictOfClosestContexts2CurrentRatingContext[pastContext] = dist
+                
+        #Sort distances in descending order(Cos0 is 1. so the more nearer to 1 the more similar)
+        listOfDistance = [distance for distance in dictOfClosestContexts2CurrentRatingContext.values()]
+        listOfDistance.sort(reverse=True)
         
         #Start with minDist(1st element in sorted distance list) and get all the contexts belonging to 
         #this list. Then check for next bigger dist
         for minDist in listOfDistance:
-            listOfContextsWithMinDist = filter(lambda x : x[1] == minDist , listOfDistancesWRTCurrentContext)
+            listOfContextsWithMinDist = filter(lambda contextdistancepair : contextdistancepair[1] == minDist , dictOfClosestContexts2CurrentRatingContext.iteritems())
             if len(listOfContextsWithMinDist) > noOfClosestPastArrivalsToBeConsidered:
                 listOfPastClosestContexts.extend(listOfContextsWithMinDist[:int(noOfClosestPastArrivalsToBeConsidered)])
                 break
             else:
                 listOfPastClosestContexts.extend(listOfContextsWithMinDist)
+                
+        #Current context should always be added.
+        listOfPastClosestContexts.append((currentRatingContext,0))
         return listOfPastClosestContexts
     
 def recommendedGenreIdForExploration(listOfPastClosestContexts, explorationParam):
@@ -138,7 +154,8 @@ if __name__ == '__main__':
     buildGenreId2MovieIdList()
     buildUsers()
     rewardPayOffs()
-    for i in xrange(ITERCOUNT):
+    regret = 0
+    for i in xrange(1, ITERCOUNT+1):
         #Randomly select an user from User list dictOfUserIdToUser.keys()
         #Observe the context. #Initially user has vector with 0,0... as context (No ratings avlbl) dictOfUserIdToUser[UserId]
         #Find past arrived contexts within t^alpha 
@@ -147,28 +164,25 @@ if __name__ == '__main__':
         #Explore or exploit
         #Update the counts of Cluster
         #Update the context of user with the rating if provided and dict mapping
-        
+        if i%10000 == 0:
+            print 'BS'
         randomUserId = random.choice(dictOfUserIdToUser.keys())
         currentUser = dictOfUserIdToUser[randomUserId]
         currentRatingContextId = getNormalizedRatingVector(currentUser)
         currentRatingContext = Context(currentRatingContextId) if dictOfContextIds2Contexts.get(currentRatingContextId) is None else dictOfContextIds2Contexts[currentRatingContextId]
         dictOfContextIds2Contexts[currentRatingContextId] = currentRatingContext
         #Find List of Closest contexts
-        noOfClosestPastArrivalsToBeConsidered = math.floor(math.pow(i, Alpha))
+        noOfClosestPastArrivalsToBeConsidered = int(math.floor(math.pow(i, Alpha)))
         
         listOfPastClosestContexts = getClosestContexts(currentRatingContext, noOfClosestPastArrivalsToBeConsidered)
-        if listOfPastClosestContexts :
-            logParam = math.pow(i, Alpha)
-            explorationParam = A * math.pow(i, Beta) * math.log(logParam)
-            #Check count of each cluster(Genre) in PastClosestContexts. If anyof this is < exploration param, play the cluster
-            genreIdToRecommend = recommendedGenreIdForExploration(listOfPastClosestContexts, explorationParam)
+        logParam = math.pow(i, Alpha)
+        explorationParam = A * math.pow(i, Beta) * math.log(logParam)
+        #Check count of each cluster(Genre) in PastClosestContexts. If anyof this is < exploration param, play the cluster
+        genreIdToRecommend = recommendedGenreIdForExploration(listOfPastClosestContexts, explorationParam)
             
-            if genreIdToRecommend is None:
-                #Exploit as there are no GenreIds with count less than Exploration param
-                genreIdToRecommend = recommendedGenreIdForExploitation(listOfPastClosestContexts)
-            
-        else:
-            genreIdToRecommend = random.choice(listOfGenres)
+        if genreIdToRecommend is None:
+            #Exploit as there are no GenreIds with count less than Exploration param
+            genreIdToRecommend = recommendedGenreIdForExploitation(listOfPastClosestContexts)
             
             
         #Randomly select a movie from this genreid
@@ -179,13 +193,16 @@ if __name__ == '__main__':
         recommendedMovieId = random.choice(avlblMovieList)
         #Observe the Reward   
         observedReward = currentUser.getRewardForMovieid(recommendedMovieId)
-        if (observedReward > 0 ):
-            print "BS"
+        regret = regret + 1 if not observedReward else regret 
         #Update the counts and payoffs
         currentUser.addRating(genreIdToRecommend, observedReward, recommendedMovieId)
         currentRatingContext.addCountForGenreId(genreIdToRecommend)
         currentRatingContext.addRewardForGenreId(genreIdToRecommend, observedReward)
         dictOfArrivalToContext[i] = currentRatingContext
+        dictOfIter2Regret[i] = float(regret)/(i)
         print 'Iteration %s complete'%i
+        
+    plt.plot(dictOfIter2Regret.keys(), dictOfIter2Regret.values())
+    plt.show()
     print 'Done'
     
