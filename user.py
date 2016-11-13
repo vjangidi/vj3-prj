@@ -1,7 +1,7 @@
 '''
 Created on Nov 6, 2016
 
-@author: Varun
+@author: Varun/Fathima
 '''
 
 NormalizingConstant = 1/5.0
@@ -39,7 +39,7 @@ class User(object):
         return self.listOfMoviesRated
     
     def addReward(self, rating, movieId):
-            self.rewardDict[movieId] = [rating]
+            self.rewardDict[movieId] = rating
             
     def getRewardForMovieid(self, movieId):
             return 0 if self.rewardDict.get(movieId) is None else self.rewardDict[movieId] 

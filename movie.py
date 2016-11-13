@@ -1,7 +1,7 @@
 '''
 Created on Nov 6, 2016
 
-@author: Varun
+@author: Varun/Fathima
 '''
 
 class Movie(object):

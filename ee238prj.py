@@ -3,14 +3,14 @@ Created on Nov 6, 2016
 
 @author: Varun/Fathima
 '''
-from user import User
+from user import User, NormalizingConstant
 from movie import Movie
 from context import Context
 import random
 import math
 
 Seperator = '::'
-ITERCOUNT = 50000
+ITERCOUNT = 5000
 RANDOM_REWARD_MOVIECOUNT = 50
 A = 1.5
 Beta = 0.25
@@ -18,14 +18,19 @@ Alpha = 0.5
 
 
 dictOfMovieIdToMovie = {}
+dictOfGenreId2MovieIdList = {}
 dictOfUserIdToUser = {}
 dictOfContextIds2Contexts = {}
 listOfGenres = []
 dictOfArrivalToContext = {}
 
-def getMovieListForAGenreId(genreId):
-    return filter(lambda mov : genreId in mov.getGenreList(), dictOfMovieIdToMovie.values())
+def buildGenreId2MovieIdList():
+    for genreId in listOfGenres:
+        dictOfGenreId2MovieIdList[genreId] = getMovieListForAGenreId(genreId)
 
+def getMovieListForAGenreId(genreId):
+    listOfMovies = filter(lambda mov : genreId in mov.getGenreList(), dictOfMovieIdToMovie.values())
+    return [movie.getMovieId() for movie in listOfMovies]
 
 def initGenreList():
     listOfGenresTemp = []
@@ -37,8 +42,7 @@ def initGenreList():
 def getNormalizedRatingVector(user):
         return tuple([user.getNormalizedRatingForGenre(genreId) for genreId in listOfGenres])
 
-#Select 50 movies randomly for each user out of which 10 movies each are assigned to
-#one of 5 ratings 
+
 def rewardPayOffs():
     f = open("C:\\UCLA MS\\EE238\\ml-1m\\ml-1m\\ratings.dat")
     for line in f:
@@ -47,7 +51,7 @@ def rewardPayOffs():
         movieId = ratingItems[1]
         rating = ratingItems[2]
         user = dictOfUserIdToUser[userId]
-        user.addReward(rating, movieId)
+        user.addReward(int(rating), movieId)
             
 def buildMovies():
     f = open("C:\UCLA MS\EE238\ml-1m\ml-1m\movies.dat")
@@ -67,10 +71,13 @@ def buildUsers():
         dictOfUserIdToUser[userId] = User(userId)
                     
 def calculateCosineDistance(pastContext,currentRatingContext):
-    dotProduct = reduce(lambda x, y : x + y, [pastContext[i]*currentRatingContext[i] for i in xrange(len(pastContext))])
-    scalarProduct = math.sqrt(reduce(lambda x, y : x + y, [pastContext[i]*pastContext[i] for i in xrange(len(pastContext))])) \
-                    * math.sqrt(reduce(lambda x, y : x + y, [currentRatingContext[i]*currentRatingContext[i] for i in xrange(len(currentRatingContext))]))
-    
+    pastContextId = pastContext.getContext()
+    currentRatingContextId = currentRatingContext.getContext()
+    dotProduct = reduce(lambda x, y : x + y, [pastContextId[i]*currentRatingContextId[i] for i in xrange(len(pastContextId))])
+    scalarProduct = math.sqrt(reduce(lambda x, y : x + y, [pastContextId[i]*pastContextId[i] for i in xrange(len(pastContextId))])) \
+                    * math.sqrt(reduce(lambda x, y : x + y, [currentRatingContextId[i]*currentRatingContextId[i] for i in xrange(len(currentRatingContextId))]))
+    if dotProduct == 0:
+        return 0
     return dotProduct/scalarProduct
 
 def getClosestContexts(currentRatingContext, noOfClosestPastArrivalsToBeConsidered):
@@ -88,7 +95,7 @@ def getClosestContexts(currentRatingContext, noOfClosestPastArrivalsToBeConsider
         for minDist in listOfDistance:
             listOfContextsWithMinDist = filter(lambda x : x[1] == minDist , listOfDistancesWRTCurrentContext)
             if len(listOfContextsWithMinDist) > noOfClosestPastArrivalsToBeConsidered:
-                listOfPastClosestContexts.extend(listOfContextsWithMinDist[:noOfClosestPastArrivalsToBeConsidered])
+                listOfPastClosestContexts.extend(listOfContextsWithMinDist[:int(noOfClosestPastArrivalsToBeConsidered)])
                 break
             else:
                 listOfPastClosestContexts.extend(listOfContextsWithMinDist)
@@ -98,7 +105,7 @@ def recommendedGenreIdForExploration(listOfPastClosestContexts, explorationParam
     genreIdToRecommend = None
     for genreId in listOfGenres:
             pastCountsForThisGenreId = 0
-            for context in listOfPastClosestContexts:
+            for context, dist in listOfPastClosestContexts:
                 pastCountsForThisGenreId = pastCountsForThisGenreId + context.getCountForGenreId(genreId)
                 if pastCountsForThisGenreId < explorationParam:
                     genreIdToRecommend = genreId
@@ -111,9 +118,10 @@ def recommendedGenreIdForExploitation(listOfPastClosestContexts):
         dictOfGenreIdPayoff = {}
         for genreId in listOfGenres:
                 pastRewardsForThisGenreId = []
-                for context in listOfPastClosestContexts:
-                    pastRewardsForThisGenreId.append(context.getRewardForGenreId(genreId))
-                dictOfGenreIdPayoff[genreId] = reduce(lambda x, y : x + y, pastRewardsForThisGenreId)/len(pastRewardsForThisGenreId)            
+                for context,dist in listOfPastClosestContexts:
+                    pastRewardsForThisGenreId.extend(context.getRewardForGenreId(genreId))
+                #print 'Past Rewards For GenreId %s is %s'%(genreId, pastRewardsForThisGenreId)
+                dictOfGenreIdPayoff[genreId] = NormalizingConstant * reduce(lambda x, y : x + y, pastRewardsForThisGenreId)/len(pastRewardsForThisGenreId)            
             #Findout highest payoff genreId
         averagePayoffsList = dictOfGenreIdPayoff.values()
         averagePayoffsList.sort()
@@ -127,6 +135,7 @@ def recommendedGenreIdForExploitation(listOfPastClosestContexts):
 if __name__ == '__main__':
     buildMovies()
     initGenreList()
+    buildGenreId2MovieIdList()
     buildUsers()
     rewardPayOffs()
     for i in xrange(ITERCOUNT):
@@ -138,34 +147,45 @@ if __name__ == '__main__':
         #Explore or exploit
         #Update the counts of Cluster
         #Update the context of user with the rating if provided and dict mapping
+        
         randomUserId = random.choice(dictOfUserIdToUser.keys())
         currentUser = dictOfUserIdToUser[randomUserId]
         currentRatingContextId = getNormalizedRatingVector(currentUser)
         currentRatingContext = Context(currentRatingContextId) if dictOfContextIds2Contexts.get(currentRatingContextId) is None else dictOfContextIds2Contexts[currentRatingContextId]
-        
+        dictOfContextIds2Contexts[currentRatingContextId] = currentRatingContext
         #Find List of Closest contexts
         noOfClosestPastArrivalsToBeConsidered = math.floor(math.pow(i, Alpha))
-        listOfPastClosestContexts = getClosestContexts(currentRatingContext, noOfClosestPastArrivalsToBeConsidered)
-         
-        explorationParam = A * math.pow(i, Beta) * math.log(math.pow(i, Alpha))
-        #Check count of each cluster(Genre) in PastClosestContexts. If anyof this is < exploration param, play the cluster
-        genreIdToRecommend = recommendedGenreIdForExploration(listOfPastClosestContexts, explorationParam)
         
-        if genreIdToRecommend is None:
-            #Exploit as there are no GenreIds with count less than Exploration param
-            genreIdToRecommend = recommendedGenreIdForExploitation(listOfPastClosestContexts)
+        listOfPastClosestContexts = getClosestContexts(currentRatingContext, noOfClosestPastArrivalsToBeConsidered)
+        if listOfPastClosestContexts :
+            logParam = math.pow(i, Alpha)
+            explorationParam = A * math.pow(i, Beta) * math.log(logParam)
+            #Check count of each cluster(Genre) in PastClosestContexts. If anyof this is < exploration param, play the cluster
+            genreIdToRecommend = recommendedGenreIdForExploration(listOfPastClosestContexts, explorationParam)
+            
+            if genreIdToRecommend is None:
+                #Exploit as there are no GenreIds with count less than Exploration param
+                genreIdToRecommend = recommendedGenreIdForExploitation(listOfPastClosestContexts)
+            
+        else:
+            genreIdToRecommend = random.choice(listOfGenres)
+            
             
         #Randomly select a movie from this genreid
-        genreIdMovieList = getMovieListForAGenreId(genreIdToRecommend)
-        alreadyRecommendedMovieList = dictOfUserIdToUser[randomUserId].getRatedMovieList()
+        genreIdMovieList = dictOfGenreId2MovieIdList[genreIdToRecommend]
+        alreadyRecommendedMovieList = currentUser.getRatedMovieList()
         avlblMovieList = list(set(genreIdMovieList).difference(set(alreadyRecommendedMovieList)))
         
         recommendedMovieId = random.choice(avlblMovieList)
         #Observe the Reward   
         observedReward = currentUser.getRewardForMovieid(recommendedMovieId)
+        if (observedReward > 0 ):
+            print "BS"
         #Update the counts and payoffs
         currentUser.addRating(genreIdToRecommend, observedReward, recommendedMovieId)
         currentRatingContext.addCountForGenreId(genreIdToRecommend)
-        currentRatingContext.addRewardForGenreId(observedReward)
+        currentRatingContext.addRewardForGenreId(genreIdToRecommend, observedReward)
         dictOfArrivalToContext[i] = currentRatingContext
+        print 'Iteration %s complete'%i
+    print 'Done'
     

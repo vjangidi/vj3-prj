@@ -21,13 +21,19 @@ class Context(object):
         return self.context
         
     def addCountForGenreId(self, genreId):
-        self.GenreId2Count[genreId] = 1 if self.GenreId2Count.get(genreId) is None else self.GenreId2Count[genreId] + 1
+        if self.GenreId2Count.get(genreId) is None:
+            self.GenreId2Count[genreId] = 1  
+        else:
+            self.GenreId2Count[genreId] = self.GenreId2Count[genreId] + 1
             
-    def addRewardForGenreId(self,genreId, rewardRating):   
-        self.GenreId2RewardPayoff[genreId] = [rewardRating] if self.GenreId2RewardPayoff.get(genreId) is None else self.GenreId2RewardPayoff[genreId].append(rewardRating)
+    def addRewardForGenreId(self,genreId, rewardRating):
+        if self.GenreId2RewardPayoff.get(genreId) is None:
+            self.GenreId2RewardPayoff[genreId] = [rewardRating]  
+        else:
+            self.GenreId2RewardPayoff[genreId].append(rewardRating)
         
     def getCountForGenreId(self, genreId):
-        return self.GenreId2Count[genreId] if self.GenreId2Count[genreId] else 0
+        return 0 if self.GenreId2Count.get(genreId) is None else self.GenreId2Count[genreId]
     
     def getRewardForGenreId(self, genreId):
         if self.GenreId2RewardPayoff.get(genreId) is None:
