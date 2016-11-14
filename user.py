@@ -14,6 +14,7 @@ class User(object):
         self.rewardDict = {}
         self.userId = userId
         
+    #Adds rating for given movieId to a list of ratings already present for genreId
     def addRating(self, genreId, rating, movieId):
         existingRatingsForThisGenre = self.dictOfGenreToRatings.get(genreId)
         if  existingRatingsForThisGenre:
@@ -25,6 +26,8 @@ class User(object):
     def getRatingListForGenreId(self, genreId):
             return self.dictOfGenreToRatings.get(genreId)
         
+    # Computes the mean of available ratings for the given genreId and normalizes it
+    # by multiplying with 1/5 
     def getNormalizedRatingForGenre(self, genreId):
         ratingsForGenre = self.dictOfGenreToRatings.get(genreId)
         ratingMean = 0
@@ -38,6 +41,7 @@ class User(object):
     def getRatedMovieList(self):
         return self.listOfMoviesRated
     
+    #Keeps track of movies which user has rated so that reward can be obtained
     def addReward(self, rating, movieId):
             self.rewardDict[movieId] = rating
             

@@ -12,10 +12,9 @@ import matplotlib.pyplot as plt
 
 Seperator = '::'
 ITERCOUNT = 50000
-RANDOM_REWARD_MOVIECOUNT = 50
-A = 1.5
-Beta = 0.25
-Alpha = 0.5
+A = 10
+Beta = 0.1
+Alpha = 0.2
 
 dictOfIter2Regret = {}
 dictOfMovieIdToMovie = {}
@@ -43,6 +42,9 @@ def initGenreList():
 
 def getNormalizedRatingVector(user):
         return tuple([user.getNormalizedRatingForGenre(genreId) for genreId in listOfGenres])
+    
+def notRatedContext():
+        return tuple([0] * len(listOfGenres))
 
 
 def rewardPayOffs():
@@ -83,10 +85,13 @@ def calculateCosineDistance(pastContext,currentRatingContext):
     return dotProduct/scalarProduct
 
 def getClosestContexts(currentRatingContext, noOfClosestPastArrivalsToBeConsidered):
+        if currentRatingContext.getContext() == notRatedContext():
+            return [(currentRatingContext,0)]
+            
         listOfPastClosestContexts = []
-        #Getting the reverse list values
-        dictOfClosestContexts2CurrentRatingContext = {} 
-        pastContexts = list(set(dictOfArrivalToContext.values()[-noOfClosestPastArrivalsToBeConsidered:])) 
+        dictOfClosestContexts2CurrentRatingContext = {}
+        #Getting All Past unique contexts. Calculate Distance and consider  noOfClosestPastArrivalsToBeConsidered contexts
+        pastContexts = list(set(dictOfArrivalToContext.values()))
         for pastContext in pastContexts:
             if (pastContext.getContext() != currentRatingContext.getContext()):
                 key = (currentRatingContext.getContext(),pastContext.getContext())
@@ -164,8 +169,6 @@ if __name__ == '__main__':
         #Explore or exploit
         #Update the counts of Cluster
         #Update the context of user with the rating if provided and dict mapping
-        if i%10000 == 0:
-            print 'BS'
         randomUserId = random.choice(dictOfUserIdToUser.keys())
         currentUser = dictOfUserIdToUser[randomUserId]
         currentRatingContextId = getNormalizedRatingVector(currentUser)
